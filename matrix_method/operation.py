@@ -75,3 +75,8 @@ def element_operation(A: list[list[float]], func) -> list[list[float]]:
         result.append(row)
 
     return result
+
+
+def transpose(A: list[list[float]]) -> list[list[float]]:
+    """Транспонирует матрицу"""
+    return [[row[i] for row in A] for i in range(len(A[0]))]

@@ -15,10 +15,17 @@ def softmax(t: list[list[float]]) -> list[list[float]]:
 
 def cross_entropy(z: list[list[float]], y: list[list[float]]) -> list[list[float]]:
     entropy = 0
-    for i in range(len(z)):
-        entropy = entropy + y[i][0] * math.log(z[i][0])
-    return -entropy
+    for i in range(len(z[0])):
+        entropy = entropy - y[0][i] * math.log(z[0][i])
+    return entropy
 
 
-print(softmax([[1], [6], [9], [0]]))
-print(cross_entropy(softmax([[1], [6], [9], [0]]), [[1], [0], [0], [0]]))
+def convert_y_in_stroke(y: float, num_of_classes: float) -> list[list[float]]:
+    y_full = matrix_method.fill.zeros(num_of_classes, 1)
+    y_full[0][y] = 1
+    return y_full
+
+
+test = softmax([[1, 6, 9, 0]])
+print(test[0].index(max(test[0])) + 1)
+# print(cross_entropy(softmax([[1, 6, 9, 0]]), [[0, 0, 1, 0]]))
