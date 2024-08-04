@@ -2,6 +2,7 @@ import activation_function
 import activation_function.relu
 import activation_function.sigmoid
 import matrix_method
+import random
 import matrix_method.fill
 from typing import TypedDict, List, Dict
 import func
@@ -286,6 +287,7 @@ def one_iteration_of_training(
 
 
 for epoch in range(epoch_count):
+    random.shuffle(dataset)
     for data_example_index in range(len(dataset)):
         x = dataset[data_example_index]["x"]
         y = dataset[data_example_index]["y"]
@@ -308,7 +310,7 @@ def calc_accuracy():
         answer: Answer = get_neuron_net_answer(x, neuron_net)
         y_predict = answer["z"][0].index(max(answer["z"][0]))
         # print(answer["z"])
-        # print("y_predict:", y_predict, "y:", y)
+        print("y_predict:", y_predict, "y:", y)
         if y_predict == y:
             correct += 1
 
