@@ -1,3 +1,6 @@
+# import fill
+
+
 def plus(A: list[list[float]], B: list[list[float]]) -> list[list[float]]:
     """
     matrix A plus matrix B
@@ -55,7 +58,7 @@ def element_multiply(A: list[list[float]], B: list[list[float]]) -> list[list[fl
     matrix A element_multiply matrix B
     """
     result = []
-
+    # print("A:", A, "B:", B)
     for i in range(len(A)):
         row = []
         for j in range(len(A[0])):
@@ -80,3 +83,6 @@ def element_operation(A: list[list[float]], func) -> list[list[float]]:
 def transpose(A: list[list[float]]) -> list[list[float]]:
     """Транспонирует матрицу"""
     return [[row[i] for row in A] for i in range(len(A[0]))]
+
+
+# print(dE_db_batch([[6, 7, 8], [1, 2, 3], [5, 6, 7]]))

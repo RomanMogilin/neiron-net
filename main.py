@@ -7,19 +7,13 @@ import matrix_method.fill
 from typing import TypedDict, List, Dict
 import func
 
+import dataset_getter
+
 import matrix_method.operation
 
-from sklearn import datasets
+dataset = dataset_getter.get_dataset(10000)
 
-iris = datasets.load_iris()
-
-dataset = [(iris.data[i][None, ...], iris.target[i]) for i in range(len(iris.target))]
-
-for learining_example in range(len(dataset)):
-    dataset[learining_example] = {
-        "x": [list(list(dataset[learining_example][0][0]))],
-        "y": dataset[learining_example][1],
-    }
+# print(dataset)
 
 
 class Structure(TypedDict):
@@ -47,7 +41,7 @@ def init_neuron_net(structure: Structure) -> neuronNet:
     def fill_layer(key: str, row: int, column: int):
         neuron_net[key] = {
             "w": matrix_method.fill.rand(column, row),
-            "b": matrix_method.fill.rand(column, 1),
+            "b": matrix_method.fill.zeros(column, 1),
         }
 
     if len(structure["hidden_layers"]) == 0:
@@ -103,20 +97,40 @@ class T_and_H(TypedDict):
     Dict[str, T_and_H_elememt]
 
 
+index_of_answer = 0
+
+
 def get_neuron_net_answer(x: list[list[float]], neuron_net: neuronNet):
+    global index_of_answer
+    file_of_debug = open("debug.txt", "w")
     z = x
     t_and_h: T_and_H = {}
     # print("neuron_net: ", neuron_net)
     for layer in neuron_net.keys():
         current_layer: LayerParams = neuron_net[layer]
         if layer != layer_name(str(len(structure["hidden_layers"]) - 1), "output"):
+            # print(
+            #     # "t:",
+            #     # matrix_method.operation.multiply(z, current_layer["w"]),
+            #     # "\nb:",
+            #     # current_layer["b"],
+            #     # len(z),
+            #     # len(z[0]),
+            #     # " >=< ",
+            #     # len(current_layer["w"]),
+            #     # len(current_layer["w"][0]),
+            # )
+            file_of_debug.write("z_" + str(index_of_answer) + ": " + str(z) + "\n")
+            file_of_debug.write(
+                "w_" + str(index_of_answer) + ": " + str(current_layer["w"]) + "\n"
+            )
             t = matrix_method.operation.plus(
                 matrix_method.operation.multiply(z, current_layer["w"]),
                 current_layer["b"],
             )
             h = matrix_method.operation.element_operation(
                 t,
-                activation_function.relu.func,
+                activation_function.sigmoid.func,
             )
             t_and_h[layer] = {"t": t, "h": h}
             z = h
@@ -129,21 +143,32 @@ def get_neuron_net_answer(x: list[list[float]], neuron_net: neuronNet):
             t_and_h[layer] = {"t": t, "h": [[]]}
             z = t
         # print("z: ", z)
+    # print("index_of_answer: ", index_of_answer)
+    index_of_answer += 1
+    file_of_debug.close()
+    # print(z)
     return {"z": func.softmax(z), "t_and_h": t_and_h}
 
 
 # ==================== #
 
+structure: Structure = {
+    "input_layer": 784,
+    "hidden_layers": [128, 128, 128],
+    "output_layer": 10,
+}
 
-structure: Structure = {"input_layer": 4, "hidden_layers": [5], "output_layer": 3}
+learning_rate = 0.0001
 
-learning_rate = 0.001
+epoch_count = 50
 
-epoch_count = 200
+batch_size = 50
 
 # ==================== #
 
 neuron_net: neuronNet = init_neuron_net(structure)
+# print(neuron_net)
+# print(neuron_net)
 
 
 class Answer(TypedDict):
@@ -161,29 +186,88 @@ def one_iteration_of_training(
     learning_rate: float,
 ):
     copy_neuron_net: neuronNet = neuron_net
-    answer: Answer = get_neuron_net_answer(x, copy_neuron_net)
 
-    entropy = func.cross_entropy(answer["z"], y)
+    # answer #
+
+    answer_list: list[Answer] = []
+
+    for answer_item in x:
+        answer_list.append(get_neuron_net_answer([answer_item], copy_neuron_net))
+
+    # === #
+
+    # print(len(answer_list))
+
+    # entropy, Z, Y #
+
+    entropy = 0
+    Z = []
+    Y = []
+
+    for entropy_index in range(len(answer_list)):
+        entropy += func.cross_entropy(
+            answer_list[entropy_index]["z"], [y[entropy_index]]
+        )
+        # print(answer_list[entropy_index]["z"], [y[entropy_index]])
+        Z.append(answer_list[entropy_index]["z"][0])
+        Y.append(y[entropy_index])
+
     loss_arr.append(entropy)
+    # print(entropy)
+    # print("Y:", Y)
+    # print("Z:", Z)
+
+    # === #
+
+    # t_and_h #
+
+    t_and_h: T_and_H = {}
+
+    layers_names = list(copy_neuron_net.keys())
+
+    # print(layers_names)
+
+    for answer_layer in layers_names:
+        t_and_h[answer_layer] = {"t": [], "h": []}
+
+    for answer_item in answer_list:
+        current_answer_item: T_and_H = answer_item["t_and_h"]
+        # print(current_answer_item)
+        for layer_name_answer in layers_names:
+            current_answer_layer: T_and_H_elememt = current_answer_item[
+                layer_name_answer
+            ]
+            t_and_h[layer_name_answer]["t"].append(current_answer_layer["t"][0])
+            t_and_h[layer_name_answer]["h"].append(current_answer_layer["h"][0])
+
+    # print(t_and_h)
+
+    # === #
+
+    # X #
+
+    X = []
+
+    for x_item in x:
+        X.append(x_item)
+
+    # print("X:", X, len(X), len(X[0]))
+
+    # === #
 
     layers_reverse = list(copy_neuron_net.keys())
     layers_reverse.reverse()
-    # print(layers_reverse)
 
-    # print(neuron_net)
+    def dE_db_batch(b_matrix: list[list[float]]) -> list[list[float]]:
+        b = matrix_method.fill.zeros(len(b_matrix[0]), 1)
+        for b_item in b_matrix:
+            b = matrix_method.operation.plus(b, [b_item])
+        return b
 
     def change_w_and_b(
         dE_db: list[list[float]], dE_dw: list[list[float]], layer_name: str
     ) -> None:
 
-        # print(
-        #     ">>>",
-        #     copy_neuron_net[layer_name]["w"],
-        #     "<><>",
-        #     matrix_method.operation.element_operation(
-        #         dE_dw, lambda x: x * learning_rate
-        #     ),
-        # )
         copy_neuron_net[layer_name]["w"] = matrix_method.operation.minus(
             copy_neuron_net[layer_name]["w"],
             matrix_method.operation.element_operation(
@@ -191,33 +275,36 @@ def one_iteration_of_training(
             ),
         )
 
-        copy_neuron_net[layer_name]["b"] = matrix_method.operation.minus(
-            copy_neuron_net[layer_name]["b"],
-            matrix_method.operation.element_operation(
-                dE_db, lambda x: x * learning_rate
-            ),
-        )
+        # print(">>>)))")
+        # print(copy_neuron_net[layer_name]["b"])
+        # copy_neuron_net[layer_name]["b"] = matrix_method.operation.minus(
+        #     copy_neuron_net[layer_name]["b"],
+        #     matrix_method.operation.element_operation(
+        #         dE_db, lambda x: x * learning_rate
+        #     ),
+        # )
 
     if len(structure["hidden_layers"]) == 0:
         dE_dh = None
-        dE_dt = matrix_method.operation.minus(answer["z"], y)
+        dE_dt = matrix_method.operation.minus(Z, Y)
         dE_dw = matrix_method.operation.multiply(
-            matrix_method.operation.transpose(x), dE_dt
+            matrix_method.operation.transpose(X), dE_dt
         )
-        dE_db = dE_dt
+        dE_db = dE_db_batch(dE_dt)
 
         change_w_and_b(dE_db, dE_dw, layer_name("input", "output"))
     else:
-        # print("answer['t_and_h']: ", answer["t_and_h"])
-        # print(layers_reverse[1])
+        first_layer_name = layer_name("input", "0")
+
         dE_dh = None
-        dE_dt = matrix_method.operation.minus(answer["z"], y)
+        dE_dt = matrix_method.operation.minus(Z, Y)
+        # print(">>>>>>>>>>>>>>>>>")
+        # print(Z, Y)
         dE_dw = matrix_method.operation.multiply(
-            matrix_method.operation.transpose(
-                answer["t_and_h"][layers_reverse[1]]["h"]
-            ),
+            matrix_method.operation.transpose(t_and_h[first_layer_name]["h"]),
             dE_dt,
         )
+        # print(dE_dw)
         dE_db = dE_dt
 
         change_w_and_b(
@@ -238,20 +325,19 @@ def one_iteration_of_training(
                     copy_neuron_net[previous_layer_name]["w"]
                 ),
             )
+
             dE_dt = matrix_method.operation.element_multiply(
                 dE_dh,
                 matrix_method.operation.element_operation(
-                    answer["t_and_h"][layers_reverse[hidden_layer_name_index]]["t"],
-                    activation_function.relu.derivative,
+                    t_and_h[layers_reverse[hidden_layer_name_index]]["t"],
+                    activation_function.sigmoid.derivative,
                 ),
             )
             dE_dw = matrix_method.operation.multiply(
-                matrix_method.operation.transpose(
-                    answer["t_and_h"][next_layer_name]["h"]
-                ),
+                matrix_method.operation.transpose(t_and_h[next_layer_name]["h"]),
                 dE_dt,
             )
-            dE_db = dE_dt
+            dE_db = dE_db_batch(dE_dt)
 
             change_w_and_b(dE_db, dE_dw, layers_reverse[hidden_layer_name_index])
             # print(
@@ -271,76 +357,111 @@ def one_iteration_of_training(
         dE_dt = matrix_method.operation.element_multiply(
             dE_dh,
             matrix_method.operation.element_operation(
-                answer["t_and_h"][layer_name("input", 0)]["t"],
-                activation_function.relu.derivative,
+                t_and_h[layer_name("input", 0)]["t"],
+                activation_function.sigmoid.derivative,
             ),
         )
         dE_dw = matrix_method.operation.multiply(
             matrix_method.operation.transpose(x),
             dE_dt,
         )
-        dE_db = dE_dt
+        dE_db = dE_db_batch(dE_dt)
 
         change_w_and_b(dE_db, dE_dw, layer_name("input", 0))
 
     return copy_neuron_net
 
 
-for epoch in range(epoch_count):
-    random.shuffle(dataset)
-    for data_example_index in range(len(dataset)):
-        x = dataset[data_example_index]["x"]
-        y = dataset[data_example_index]["y"]
-        neuron_net = one_iteration_of_training(
-            neuron_net,
-            x,
-            func.convert_y_in_stroke(y, structure["output_layer"]),
-            learning_rate,
-        )
-        # print(func.convert_y_in_stroke(y, structure["output_layer"]), y)
+import colorama
 
-print(dataset)
+colorama.init()
+
+
+def percent_line(current_count, count, message):
+    num_of_tire = int(round((current_count / count) * 50))
+    percent = round((current_count / count) * 100, 3)
+    black_lines = int(50 - num_of_tire)
+    print(
+        colorama.Fore.GREEN
+        + "━" * num_of_tire
+        + colorama.Fore.BLACK
+        + "━" * black_lines
+        + " "
+        + f"{percent:.2f}"
+        + "%"
+        + " "
+        + message
+    )
 
 
 def calc_accuracy():
     correct = 0
     for data_example_index in range(len(dataset)):
+        percent_line(data_example_index, len(dataset), "calculating accuracy")
         x = dataset[data_example_index]["x"]
         y = dataset[data_example_index]["y"]
         answer: Answer = get_neuron_net_answer(x, neuron_net)
         y_predict = answer["z"][0].index(max(answer["z"][0]))
         # print(answer["z"])
-        print("y_predict:", y_predict, "y:", y)
+        # print("y_predict:", y_predict, "y:", y)
+        print("\033[F\033[K", end="")
         if y_predict == y:
             correct += 1
-
+    percent_line(len(dataset), len(dataset), "calculating accuracy")
     acc = correct / len(dataset)
 
     return acc
 
 
-accuracy = calc_accuracy()
-print(neuron_net)
-print("Accuracy:", accuracy * 100, "%")
+for epoch in range(epoch_count):
+    current_percent_of_complete_epochs = round((epoch / epoch_count) * 100, 3)
+    print(f"process: {current_percent_of_complete_epochs:.2f}%")
+    random.shuffle(dataset)
+    accuracy = calc_accuracy()
+    # print(neuron_net)
+    print(f"Accuracy: {accuracy * 100:.2f}%")
+    file = open("trained_neuron_net.txt", "w")
+    file.write("neuron_net_final = " + str(neuron_net))
+    file.close()
+    print("file written")
 
+    for batch_index in range(len(dataset) // batch_size):
+        percent_line(
+            batch_index,
+            (len(dataset) // batch_size),
+            "batching",
+        )
+        batch = dataset[
+            batch_index * batch_size : batch_index * batch_size + batch_size
+        ]
+        batch_matrix = func.convert_dataset_batch_in_matrix(batch)
+        neuron_net = one_iteration_of_training(
+            neuron_net,
+            batch_matrix["x"],
+            func.convert_y_to_matrix(batch_matrix["y"], structure["output_layer"]),
+            learning_rate,
+        )
+        print("\033[F\033[K", end="")
+    percent_line(
+        (len(dataset) // batch_size),
+        (len(dataset) // batch_size),
+        "batching",
+    )
+    print("\033[F\033[K", end="")
+    print("\033[F\033[K", end="")
+    print("\033[F\033[K", end="")
+    print("\033[F\033[K", end="")
+    print("\033[F\033[K", end="")
 
-# import matplotlib.pyplot as plot
+# write final version of tained neuron net #
 
-# plot.plot(loss_arr)
-# print(loss_arr.index(max(loss_arr)))
-# print(loss_arr.index(min(loss_arr)))
-# plot.show()
+file = open("trained_neuron_net.txt", "w")
+file.write("neuron_net_final = " + str(neuron_net))
+file.close()
 
+# show plot #
 
-# print("===\nepoch:\n===\n")
-# keys = list(structure.keys())
-# keys.reverse()
-# print(keys)
-# print(
-#     one_iteration_of_training(
-#         neuron_net,
-#         [[1, 9]],
-#         func.convert_y_in_stroke(3, structure["output_layer"]),
-#         learning_rate,
-#     )
-# )
+import matplotlib.pyplot as plot
+
+plot.plot(loss_arr)
+plot.show()

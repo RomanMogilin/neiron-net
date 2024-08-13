@@ -4,3 +4,8 @@
 /error.py
 /backward.odt
 /~lock.backward.odt#
+/mnist_10000.png
+/trained_neuron_net *.txt
+/trained_neuron_net.txt
+/debug.txt
+/ouput.py
